@@ -2,7 +2,6 @@ name: Hourly Shopify Sales Report
 
 on:
 
-<<<<<<< HEAD
   # ==========================================================
   # AUTOMATIC SCHEDULE
   # ==========================================================
@@ -26,11 +25,6 @@ on:
   #
   # Actions → Hourly Shopify Sales Report → Run workflow
   # ==========================================================
-=======
-  # Run every hour at minute 0
-  schedule:
-    - cron: "2-59/5 * * * *"
->>>>>>> cbf24cb54c9981749ef36eab190368d0105707c2
 
   workflow_dispatch:
 
@@ -184,9 +178,5 @@ jobs:
         # ======================================================
 
         run: |
-<<<<<<< HEAD
 
           python main.py
-=======
-          python main.py
->>>>>>> cbf24cb54c9981749ef36eab190368d0105707c2
