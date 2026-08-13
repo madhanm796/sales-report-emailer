@@ -2,11 +2,30 @@ name: Hourly Shopify Sales Report
 
 on:
 
-  # Run every hour at minute 0
-  schedule:
-    - cron: "*/5 * * * *"
+  # ==========================================================
+  # AUTOMATIC SCHEDULE
+  # ==========================================================
+  # Run once every hour at minute 0.
+  #
+  # The timezone is explicitly set to Asia/Kolkata.
+  #
+  # GitHub may delay scheduled jobs under load, so the Python
+  # reporting-state logic should eventually account for this.
+  # ==========================================================
 
-  # Allow manual execution from GitHub
+  schedule:
+    - cron: "0 * * * *"
+      timezone: "Asia/Kolkata"
+
+
+  # ==========================================================
+  # MANUAL EXECUTION
+  # ==========================================================
+  # Allows you to test the workflow manually from:
+  #
+  # Actions → Hourly Shopify Sales Report → Run workflow
+  # ==========================================================
+
   workflow_dispatch:
 
 
@@ -16,60 +35,83 @@ jobs:
 
     runs-on: ubuntu-latest
 
+
     steps:
 
-      # ======================================================
-      # CHECKOUT
-      # ======================================================
+      # ========================================================
+      # CHECKOUT REPOSITORY
+      # ========================================================
 
       - name: Checkout repository
+
         uses: actions/checkout@v4
 
 
-      # ======================================================
-      # PYTHON
-      # ======================================================
+      # ========================================================
+      # SET UP PYTHON
+      # ========================================================
 
       - name: Set up Python
+
         uses: actions/setup-python@v5
 
         with:
           python-version: "3.12"
 
 
-      # ======================================================
-      # INSTALL DEPENDENCIES
-      # ======================================================
+      # ========================================================
+      # INSTALL PYTHON DEPENDENCIES
+      # ========================================================
 
       - name: Install dependencies
+
         run: |
+
           python -m pip install --upgrade pip
+
           pip install -r requirements.txt
 
 
-      # ======================================================
+      # ========================================================
       # RUN SALES REPORT
-      # ======================================================
+      # ========================================================
 
       - name: Run sales report
+
         env:
 
-          # --------------------------------------------------
-          # GLOBAL
-          # --------------------------------------------------
+          # ====================================================
+          # SHOPIFY
+          # ====================================================
 
           SHOPIFY_API_VERSION: ${{ secrets.SHOPIFY_API_VERSION }}
+
+
+          # ====================================================
+          # REPORT CONFIGURATION
+          # ====================================================
 
           REPORT_TIMEZONE: ${{ secrets.REPORT_TIMEZONE }}
 
           REPORT_INTERVAL_HOURS: ${{ secrets.REPORT_INTERVAL_HOURS }}
 
+
+          # ====================================================
+          # DRY RUN
+          # ====================================================
+          #
+          # Keep this TRUE while testing.
+          #
+          # Change the GitHub Secret to FALSE when you're ready
+          # to send real emails.
+          # ====================================================
+
           DRY_RUN: ${{ secrets.DRY_RUN }}
 
 
-          # --------------------------------------------------
-          # SMTP
-          # --------------------------------------------------
+          # ====================================================
+          # SMTP / GMAIL
+          # ====================================================
 
           SMTP_HOST: ${{ secrets.SMTP_HOST }}
 
@@ -80,9 +122,9 @@ jobs:
           SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
 
 
-          # --------------------------------------------------
+          # ====================================================
           # BAYBEE
-          # --------------------------------------------------
+          # ====================================================
 
           BAYBEE_LABEL: ${{ secrets.BAYBEE_LABEL }}
 
@@ -97,9 +139,9 @@ jobs:
           BAYBEE_CC_EMAILS: ${{ secrets.BAYBEE_CC_EMAILS }}
 
 
-          # --------------------------------------------------
+          # ====================================================
           # DROGO
-          # --------------------------------------------------
+          # ====================================================
 
           DROGO_LABEL: ${{ secrets.DROGO_LABEL }}
 
@@ -114,9 +156,9 @@ jobs:
           DROGO_CC_EMAILS: ${{ secrets.DROGO_CC_EMAILS }}
 
 
-          # --------------------------------------------------
+          # ====================================================
           # DOMESTICA
-          # --------------------------------------------------
+          # ====================================================
 
           DOMESTICA_LABEL: ${{ secrets.DOMESTICA_LABEL }}
 
@@ -131,5 +173,10 @@ jobs:
           DOMESTICA_CC_EMAILS: ${{ secrets.DOMESTICA_CC_EMAILS }}
 
 
+        # ======================================================
+        # EXECUTE PYTHON APPLICATION
+        # ======================================================
+
         run: |
+
           python main.py
