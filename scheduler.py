@@ -2,11 +2,27 @@ import logging
 import time
 
 from config import (
-    REPORT_INTERVAL_HOURS
+    REPORT_INTERVAL_HOURS,
 )
 
 from main import (
-    run_sales_reporter
+    run_sales_reporter,
+)
+
+
+# ============================================================
+# LOGGING
+# ============================================================
+
+logging.basicConfig(
+
+    level=logging.INFO,
+
+    format=(
+        "%(asctime)s | "
+        "%(levelname)s | "
+        "%(message)s"
+    ),
 )
 
 
@@ -14,6 +30,10 @@ logger = logging.getLogger(
     __name__
 )
 
+
+# ============================================================
+# SCHEDULER
+# ============================================================
 
 def run_scheduler():
 
@@ -25,24 +45,32 @@ def run_scheduler():
 
 
     logger.info(
-        "=========================================="
+        "=================================================="
     )
 
     logger.info(
-        "Automated Sales Report Scheduler"
+        "AUTOMATED SALES REPORT SCHEDULER"
     )
 
     logger.info(
-        "Interval: %.2f hours",
+        "=================================================="
+    )
+
+    logger.info(
+        "Interval: %.2f hour(s)",
         REPORT_INTERVAL_HOURS
     )
 
     logger.info(
-        "=========================================="
+        "=================================================="
     )
 
 
     while True:
+
+        # ----------------------------------------------------
+        # RUN REPORT
+        # ----------------------------------------------------
 
         try:
 
@@ -51,12 +79,16 @@ def run_scheduler():
         except Exception:
 
             logger.exception(
-                "Unexpected scheduler error."
+                "Unexpected error during report cycle."
             )
 
 
+        # ----------------------------------------------------
+        # WAIT
+        # ----------------------------------------------------
+
         logger.info(
-            "Next report will run in %.2f hours.",
+            "Next report will run in %.2f hour(s).",
             REPORT_INTERVAL_HOURS
         )
 
@@ -75,6 +107,10 @@ def run_scheduler():
 
             break
 
+
+# ============================================================
+# ENTRY POINT
+# ============================================================
 
 if __name__ == "__main__":
 
