@@ -1,15 +1,15 @@
 .env
 
+.venv/
+venv/
+
 __pycache__/
 *.pyc
 
-report_state.json
-
 logs/
+*.log
 
-.venv/
-venv/
-env/
+report_state.json
 
 build/
 dist/

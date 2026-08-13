@@ -11,10 +11,6 @@ from dotenv import load_dotenv
 def get_application_directory() -> str:
     """
     Return the directory containing the application.
-
-    Works with:
-    - Normal Python execution
-    - PyInstaller executable
     """
 
     if getattr(sys, "frozen", False):
@@ -33,12 +29,15 @@ def get_application_directory() -> str:
 
 
 # ============================================================
-# LOAD ENVIRONMENT
+# LOAD LOCAL .ENV
 # ============================================================
 
 def load_environment():
     """
-    Load .env from the application directory.
+    Load .env for local development.
+
+    GitHub Actions does not require .env.
+    GitHub Secrets are exposed as environment variables.
     """
 
     application_directory = (
@@ -50,31 +49,18 @@ def load_environment():
         ".env"
     )
 
-    if os.path.exists(
-        env_path
-    ):
+    if os.path.exists(env_path):
 
         load_dotenv(
             dotenv_path=env_path
         )
 
-    else:
 
-        print(
-            f"WARNING: .env file not found: "
-            f"{env_path}"
-        )
-
-        # Fallback
-        load_dotenv()
-
-
-# Load environment immediately
 load_environment()
 
 
 # ============================================================
-# SHOPIFY CONFIGURATION
+# SHOPIFY
 # ============================================================
 
 SHOPIFY_API_VERSION = os.getenv(
@@ -122,7 +108,7 @@ DRY_RUN = (
 
 
 # ============================================================
-# SMTP CONFIGURATION
+# SMTP
 # ============================================================
 
 SMTP_HOST = os.getenv(
@@ -150,7 +136,7 @@ SMTP_APP_PASSWORD = os.getenv(
 
 
 # ============================================================
-# HELPER: CC EMAIL LIST
+# EMAIL LIST PARSER
 # ============================================================
 
 def parse_email_list(
@@ -161,7 +147,7 @@ def parse_email_list(
 
     Example:
 
-        "a@example.com,b@example.com"
+        a@example.com,b@example.com
 
     becomes:
 

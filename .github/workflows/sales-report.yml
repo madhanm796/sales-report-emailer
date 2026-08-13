@@ -1,0 +1,135 @@
+name: Hourly Shopify Sales Report
+
+on:
+
+  # Run every hour at minute 0
+  schedule:
+    - cron: "0 * * * *"
+
+  # Allow manual execution from GitHub
+  workflow_dispatch:
+
+
+jobs:
+
+  sales-report:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # ======================================================
+      # CHECKOUT
+      # ======================================================
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+
+      # ======================================================
+      # PYTHON
+      # ======================================================
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+
+        with:
+          python-version: "3.12"
+
+
+      # ======================================================
+      # INSTALL DEPENDENCIES
+      # ======================================================
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+
+      # ======================================================
+      # RUN SALES REPORT
+      # ======================================================
+
+      - name: Run sales report
+        env:
+
+          # --------------------------------------------------
+          # GLOBAL
+          # --------------------------------------------------
+
+          SHOPIFY_API_VERSION: ${{ secrets.SHOPIFY_API_VERSION }}
+
+          REPORT_TIMEZONE: ${{ secrets.REPORT_TIMEZONE }}
+
+          REPORT_INTERVAL_HOURS: ${{ secrets.REPORT_INTERVAL_HOURS }}
+
+          DRY_RUN: ${{ secrets.DRY_RUN }}
+
+
+          # --------------------------------------------------
+          # SMTP
+          # --------------------------------------------------
+
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+
+          SMTP_SENDER_EMAIL: ${{ secrets.SMTP_SENDER_EMAIL }}
+
+          SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
+
+
+          # --------------------------------------------------
+          # BAYBEE
+          # --------------------------------------------------
+
+          BAYBEE_LABEL: ${{ secrets.BAYBEE_LABEL }}
+
+          BAYBEE_SHOP_NAME: ${{ secrets.BAYBEE_SHOP_NAME }}
+
+          BAYBEE_CLIENT_ID: ${{ secrets.BAYBEE_CLIENT_ID }}
+
+          BAYBEE_CLIENT_SECRET: ${{ secrets.BAYBEE_CLIENT_SECRET }}
+
+          BAYBEE_RECIPIENT_EMAIL: ${{ secrets.BAYBEE_RECIPIENT_EMAIL }}
+
+          BAYBEE_CC_EMAILS: ${{ secrets.BAYBEE_CC_EMAILS }}
+
+
+          # --------------------------------------------------
+          # DROGO
+          # --------------------------------------------------
+
+          DROGO_LABEL: ${{ secrets.DROGO_LABEL }}
+
+          DROGO_SHOP_NAME: ${{ secrets.DROGO_SHOP_NAME }}
+
+          DROGO_CLIENT_ID: ${{ secrets.DROGO_CLIENT_ID }}
+
+          DROGO_CLIENT_SECRET: ${{ secrets.DROGO_CLIENT_SECRET }}
+
+          DROGO_RECIPIENT_EMAIL: ${{ secrets.DROGO_RECIPIENT_EMAIL }}
+
+          DROGO_CC_EMAILS: ${{ secrets.DROGO_CC_EMAILS }}
+
+
+          # --------------------------------------------------
+          # DOMESTICA
+          # --------------------------------------------------
+
+          DOMESTICA_LABEL: ${{ secrets.DOMESTICA_LABEL }}
+
+          DOMESTICA_SHOP_NAME: ${{ secrets.DOMESTICA_SHOP_NAME }}
+
+          DOMESTICA_CLIENT_ID: ${{ secrets.DOMESTICA_CLIENT_ID }}
+
+          DOMESTICA_CLIENT_SECRET: ${{ secrets.DOMESTICA_CLIENT_SECRET }}
+
+          DOMESTICA_RECIPIENT_EMAIL: ${{ secrets.DOMESTICA_RECIPIENT_EMAIL }}
+
+          DOMESTICA_CC_EMAILS: ${{ secrets.DOMESTICA_CC_EMAILS }}
+
+
+        run: |
+          python main.py
