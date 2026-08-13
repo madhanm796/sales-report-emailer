@@ -4,7 +4,7 @@ on:
 
   # Run every hour at minute 0
   schedule:
-    - cron: "0 * * * *"
+    - cron: "*/5 * * * *"
 
   # Allow manual execution from GitHub
   workflow_dispatch:
