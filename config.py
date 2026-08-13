@@ -1,35 +1,44 @@
 import os
 import sys
+
 from dotenv import load_dotenv
 
 
 # ============================================================
-# APPLICATION PATH
+# APPLICATION DIRECTORY
 # ============================================================
 
 def get_application_directory() -> str:
     """
-    Returns the directory containing the Python script
-    or the compiled executable.
+    Return the directory containing the application.
+
+    Works with:
+    - Normal Python execution
+    - PyInstaller executable
     """
 
     if getattr(sys, "frozen", False):
+
         return os.path.dirname(
-            os.path.abspath(sys.executable)
+            os.path.abspath(
+                sys.executable
+            )
         )
 
     return os.path.dirname(
-        os.path.abspath(__file__)
+        os.path.abspath(
+            __file__
+        )
     )
 
 
 # ============================================================
-# ENVIRONMENT LOADING
+# LOAD ENVIRONMENT
 # ============================================================
 
 def load_environment():
     """
-    Load the .env file from the application directory.
+    Load .env from the application directory.
     """
 
     application_directory = (
@@ -41,7 +50,9 @@ def load_environment():
         ".env"
     )
 
-    if os.path.exists(env_path):
+    if os.path.exists(
+        env_path
+    ):
 
         load_dotenv(
             dotenv_path=env_path
@@ -50,19 +61,20 @@ def load_environment():
     else:
 
         print(
-            f"WARNING: .env file not found at: {env_path}"
+            f"WARNING: .env file not found: "
+            f"{env_path}"
         )
 
-        # Fallback to default dotenv behavior
+        # Fallback
         load_dotenv()
 
 
-# Load .env when this module is imported
+# Load environment immediately
 load_environment()
 
 
 # ============================================================
-# GLOBAL SHOPIFY CONFIGURATION
+# SHOPIFY CONFIGURATION
 # ============================================================
 
 SHOPIFY_API_VERSION = os.getenv(
@@ -70,15 +82,21 @@ SHOPIFY_API_VERSION = os.getenv(
     "2026-07"
 )
 
+
+# ============================================================
+# REPORT CONFIGURATION
+# ============================================================
+
 REPORT_TIMEZONE = os.getenv(
     "REPORT_TIMEZONE",
     "Asia/Kolkata"
 )
 
+
 REPORT_INTERVAL_HOURS = float(
     os.getenv(
         "REPORT_INTERVAL_HOURS",
-        "4"
+        "1"
     )
 )
 
@@ -104,13 +122,14 @@ DRY_RUN = (
 
 
 # ============================================================
-# GMAIL SMTP CONFIGURATION
+# SMTP CONFIGURATION
 # ============================================================
 
 SMTP_HOST = os.getenv(
     "SMTP_HOST",
     "smtp.gmail.com"
 )
+
 
 SMTP_PORT = int(
     os.getenv(
@@ -119,9 +138,11 @@ SMTP_PORT = int(
     )
 )
 
+
 SMTP_SENDER_EMAIL = os.getenv(
     "SMTP_SENDER_EMAIL"
 )
+
 
 SMTP_APP_PASSWORD = os.getenv(
     "SMTP_APP_PASSWORD"
@@ -129,14 +150,49 @@ SMTP_APP_PASSWORD = os.getenv(
 
 
 # ============================================================
-# SHOPIFY BRAND CONFIGURATION
+# HELPER: CC EMAIL LIST
+# ============================================================
+
+def parse_email_list(
+    value: str | None
+) -> list[str]:
+    """
+    Convert comma-separated email addresses into a list.
+
+    Example:
+
+        "a@example.com,b@example.com"
+
+    becomes:
+
+        [
+            "a@example.com",
+            "b@example.com"
+        ]
+    """
+
+    if not value:
+
+        return []
+
+    return [
+        email.strip()
+
+        for email in value.split(",")
+
+        if email.strip()
+    ]
+
+
+# ============================================================
+# BRAND CONFIGURATION
 # ============================================================
 
 BRANDS_CONFIG = {
 
-    # --------------------------------------------------------
+    # ========================================================
     # BAYBEE
-    # --------------------------------------------------------
+    # ========================================================
 
     "baybee": {
 
@@ -161,13 +217,19 @@ BRANDS_CONFIG = {
             "BAYBEE_RECIPIENT_EMAIL"
         ),
 
+        "cc_emails": parse_email_list(
+            os.getenv(
+                "BAYBEE_CC_EMAILS"
+            )
+        ),
+
         "api_version": SHOPIFY_API_VERSION,
     },
 
 
-    # --------------------------------------------------------
+    # ========================================================
     # DROGO
-    # --------------------------------------------------------
+    # ========================================================
 
     "drogo": {
 
@@ -192,13 +254,19 @@ BRANDS_CONFIG = {
             "DROGO_RECIPIENT_EMAIL"
         ),
 
+        "cc_emails": parse_email_list(
+            os.getenv(
+                "DROGO_CC_EMAILS"
+            )
+        ),
+
         "api_version": SHOPIFY_API_VERSION,
     },
 
 
-    # --------------------------------------------------------
+    # ========================================================
     # DOMESTICA
-    # --------------------------------------------------------
+    # ========================================================
 
     "domestica": {
 
@@ -221,6 +289,12 @@ BRANDS_CONFIG = {
 
         "recipient_email": os.getenv(
             "DOMESTICA_RECIPIENT_EMAIL"
+        ),
+
+        "cc_emails": parse_email_list(
+            os.getenv(
+                "DOMESTICA_CC_EMAILS"
+            )
         ),
 
         "api_version": SHOPIFY_API_VERSION,

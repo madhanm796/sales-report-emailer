@@ -1,8 +1,14 @@
 import logging
 import smtplib
 
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+from email.mime.multipart import (
+    MIMEMultipart
+)
+
+from email.mime.text import (
+    MIMEText
+)
+
 
 from config import (
     SMTP_HOST,
@@ -18,7 +24,7 @@ logger = logging.getLogger(
 
 
 # ============================================================
-# FORMATTERS
+# CURRENCY
 # ============================================================
 
 def format_currency(
@@ -38,7 +44,7 @@ def generate_html_report(
     brand_label: str,
     metrics: dict,
     start_display: str,
-    end_display: str
+    end_display: str,
 ) -> str:
 
     return f"""
@@ -71,26 +77,20 @@ body {{
 
 .wrapper {{
     width: 100%;
-
-    padding:
-        30px
-        0;
+    padding: 30px 0;
 }}
 
 .container {{
     width: 700px;
     max-width: 92%;
 
-    margin:
-        0 auto;
+    margin: 0 auto;
 
     background: #ffffff;
 
-    border:
-        1px solid #e5e7eb;
+    border: 1px solid #e5e7eb;
 
-    border-radius:
-        12px;
+    border-radius: 12px;
 
     overflow: hidden;
 }}
@@ -98,9 +98,7 @@ body {{
 .header {{
     background: #111827;
 
-    padding:
-        28px
-        30px;
+    padding: 28px 30px;
 
     color: #ffffff;
 }}
@@ -114,10 +112,7 @@ body {{
 }}
 
 .header p {{
-    margin:
-        8px
-        0
-        0;
+    margin: 8px 0 0;
 
     font-size: 13px;
 
@@ -125,20 +120,15 @@ body {{
 }}
 
 .content {{
-    padding:
-        30px;
+    padding: 30px;
 }}
 
 .section {{
-    margin-bottom:
-        30px;
+    margin-bottom: 30px;
 }}
 
 .section-title {{
-    margin:
-        0
-        0
-        12px;
+    margin: 0 0 12px;
 
     font-size: 15px;
 
@@ -150,14 +140,11 @@ body {{
 .metrics {{
     width: 100%;
 
-    border-collapse:
-        collapse;
+    border-collapse: collapse;
 }}
 
 .metrics td {{
-    padding:
-        12px
-        10px;
+    padding: 12px 10px;
 
     border-bottom:
         1px solid #eeeeee;
@@ -186,9 +173,7 @@ body {{
 }}
 
 .footer {{
-    padding:
-        18px
-        30px;
+    padding: 18px 30px;
 
     background: #f9fafb;
 
@@ -224,7 +209,7 @@ body {{
     <div class="header">
 
         <h1>
-            {brand_label} — Sales Report
+            {brand_label} — Hourly Sales Report
         </h1>
 
         <p>
@@ -461,81 +446,142 @@ body {{
 
 def send_report_email(
     recipient_email: str,
+    cc_emails: list[str],
     brand_label: str,
     metrics: dict,
     start_display: str,
-    end_display: str
+    end_display: str,
 ):
 
     subject = (
         f"[{brand_label}] "
-        f"Sales Report | "
+        f"Hourly Sales Report | "
         f"{start_display} - {end_display}"
     )
 
-    html_body = generate_html_report(
-        brand_label=brand_label,
-        metrics=metrics,
-        start_display=start_display,
-        end_display=end_display,
+
+    html_body = (
+        generate_html_report(
+
+            brand_label=brand_label,
+
+            metrics=metrics,
+
+            start_display=start_display,
+
+            end_display=end_display,
+        )
     )
+
 
     message = MIMEMultipart(
         "alternative"
     )
 
-    message["Subject"] = subject
+
+    message["Subject"] = (
+        subject
+    )
+
 
     message["From"] = (
         SMTP_SENDER_EMAIL
     )
 
+
     message["To"] = (
         recipient_email
     )
 
+
+    if cc_emails:
+
+        message["Cc"] = (
+            ", ".join(
+                cc_emails
+            )
+        )
+
+
     message.attach(
+
         MIMEText(
+
             html_body,
+
             "html",
+
             "utf-8"
         )
     )
 
-    logger.info(
-        "Sending %s report to %s",
-        brand_label,
-        recipient_email
-    )
 
     if not SMTP_SENDER_EMAIL:
+
         raise RuntimeError(
-            "SMTP_SENDER_EMAIL is not configured."
+            "SMTP_SENDER_EMAIL "
+            "is not configured."
         )
+
 
     if not SMTP_APP_PASSWORD:
+
         raise RuntimeError(
-            "SMTP_APP_PASSWORD is not configured."
+            "SMTP_APP_PASSWORD "
+            "is not configured."
         )
 
+
+    # ========================================================
+    # RECIPIENT LIST
+    # ========================================================
+
+    all_recipients = [
+
+        recipient_email,
+
+        *cc_emails,
+    ]
+
+
+    logger.info(
+        "Sending email to %s recipient(s).",
+        len(all_recipients)
+    )
+
+
+    # ========================================================
+    # SMTP
+    # ========================================================
+
     with smtplib.SMTP_SSL(
+
         SMTP_HOST,
+
         SMTP_PORT,
+
         timeout=30
+
     ) as server:
 
         server.login(
+
             SMTP_SENDER_EMAIL,
+
             SMTP_APP_PASSWORD
         )
 
+
         server.sendmail(
+
             SMTP_SENDER_EMAIL,
-            recipient_email,
+
+            all_recipients,
+
             message.as_string()
         )
 
+
     logger.info(
-        "%s report sent successfully.",
-        brand_label
+        "Email sent successfully."
     )

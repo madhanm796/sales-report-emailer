@@ -6,34 +6,43 @@ from decimal import Decimal
 # ============================================================
 
 COD_GATEWAYS = {
+
     "manual",
+
     "cash",
+
     "cash on delivery",
+
     "cash_on_delivery",
+
     "cod",
+
     "cash on delivery (cod)",
 }
 
 
 # ============================================================
-# HELPERS
+# MONEY
 # ============================================================
 
 def money(value) -> Decimal:
-    """
-    Safely convert a value into Decimal.
-    """
 
     try:
 
         return Decimal(
-            str(value or "0")
+            str(
+                value or "0"
+            )
         )
 
     except Exception:
 
         return Decimal("0")
 
+
+# ============================================================
+# PAYMENT GATEWAYS
+# ============================================================
 
 def get_payment_gateways(
     order: dict
@@ -46,7 +55,9 @@ def get_payment_gateways(
         or []
     )
 
+
     return [
+
         str(gateway)
         .strip()
         .lower()
@@ -55,40 +66,110 @@ def get_payment_gateways(
     ]
 
 
+# ============================================================
+# COD DETECTION
+# ============================================================
+
 def is_cod_order(
     order: dict
 ) -> bool:
-    """
-    Determine whether an order is COD.
-    """
 
-    gateways = get_payment_gateways(
-        order
+    gateways = (
+        get_payment_gateways(
+            order
+        )
     )
 
-    legacy_gateway = str(
-        order.get(
-            "gateway"
+
+    legacy_gateway = (
+        str(
+            order.get(
+                "gateway"
+            )
+            or ""
         )
-        or ""
-    ).strip().lower()
+        .strip()
+        .lower()
+    )
 
-    # Explicit COD gateway names
-    if any(
-        gateway in COD_GATEWAYS
-        for gateway in gateways
+
+    # Top-level gateway names
+
+    for gateway in gateways:
+
+        if gateway in COD_GATEWAYS:
+
+            return True
+
+
+        if (
+            "cash on delivery"
+            in gateway
+        ):
+
+            return True
+
+
+    # Legacy gateway
+
+    if (
+        legacy_gateway
+        in COD_GATEWAYS
     ):
+
         return True
 
-    # Shopify manual payment gateway
-    if legacy_gateway == "manual":
+
+    if (
+        "cash on delivery"
+        in legacy_gateway
+    ):
+
         return True
+
+
+    # Transaction gateway
+
+    transactions = (
+        order.get(
+            "transactions"
+        )
+        or []
+    )
+
+
+    for transaction in transactions:
+
+        gateway = (
+            str(
+                transaction.get(
+                    "gateway"
+                )
+                or ""
+            )
+            .strip()
+            .lower()
+        )
+
+
+        if gateway in COD_GATEWAYS:
+
+            return True
+
+
+        if (
+            "cash on delivery"
+            in gateway
+        ):
+
+            return True
+
 
     return False
 
 
 # ============================================================
-# MAIN CALCULATION
+# SALES METRICS
 # ============================================================
 
 def calculate_sales_metrics(
@@ -111,31 +192,18 @@ def calculate_sales_metrics(
 
     refunded_amount = Decimal("0")
 
-    net_sales = Decimal("0")
-
-    # --------------------------------------------------------
-    # COD
-    # --------------------------------------------------------
-
     cod_orders_count = 0
 
     cod_sales = Decimal("0")
-
-    # --------------------------------------------------------
-    # Paid
-    # --------------------------------------------------------
 
     paid_orders_count = 0
 
     paid_sales = Decimal("0")
 
-    # --------------------------------------------------------
-    # Cancelled
-    # --------------------------------------------------------
-
     cancelled_orders_count = 0
 
     cancelled_sales = Decimal("0")
+
 
     # ========================================================
     # PROCESS ORDERS
@@ -149,8 +217,9 @@ def calculate_sales_metrics(
             )
         )
 
+
         # ----------------------------------------------------
-        # Items
+        # ITEMS
         # ----------------------------------------------------
 
         for line_item in (
@@ -176,8 +245,9 @@ def calculate_sales_metrics(
 
                 pass
 
+
         # ----------------------------------------------------
-        # Discounts
+        # DISCOUNTS
         # ----------------------------------------------------
 
         total_discounts += money(
@@ -186,8 +256,9 @@ def calculate_sales_metrics(
             )
         )
 
+
         # ----------------------------------------------------
-        # Shipping
+        # SHIPPING
         # ----------------------------------------------------
 
         shipping_data = (
@@ -197,6 +268,7 @@ def calculate_sales_metrics(
             )
         )
 
+
         shop_money = (
             shipping_data.get(
                 "shop_money",
@@ -204,14 +276,16 @@ def calculate_sales_metrics(
             )
         )
 
+
         total_shipping += money(
             shop_money.get(
                 "amount"
             )
         )
 
+
         # ----------------------------------------------------
-        # Tax
+        # TAX
         # ----------------------------------------------------
 
         total_tax += money(
@@ -220,14 +294,18 @@ def calculate_sales_metrics(
             )
         )
 
-        # ----------------------------------------------------
-        # Gross sales
-        # ----------------------------------------------------
-
-        total_sales += total_price
 
         # ----------------------------------------------------
-        # Cancelled
+        # SALES
+        # ----------------------------------------------------
+
+        total_sales += (
+            total_price
+        )
+
+
+        # ----------------------------------------------------
+        # CANCELLED
         # ----------------------------------------------------
 
         if order.get(
@@ -240,6 +318,7 @@ def calculate_sales_metrics(
                 total_price
             )
 
+
         # ----------------------------------------------------
         # COD
         # ----------------------------------------------------
@@ -250,10 +329,13 @@ def calculate_sales_metrics(
 
             cod_orders_count += 1
 
-            cod_sales += total_price
+            cod_sales += (
+                total_price
+            )
+
 
         # ----------------------------------------------------
-        # Paid
+        # PAID
         # ----------------------------------------------------
 
         financial_status = str(
@@ -263,17 +345,23 @@ def calculate_sales_metrics(
             or ""
         ).lower()
 
+
         if financial_status in {
+
             "paid",
-            "partially_paid"
+
+            "partially_paid",
         }:
 
             paid_orders_count += 1
 
-            paid_sales += total_price
+            paid_sales += (
+                total_price
+            )
+
 
         # ----------------------------------------------------
-        # Refunds
+        # REFUNDS
         # ----------------------------------------------------
 
         for refund in (
@@ -296,13 +384,16 @@ def calculate_sales_metrics(
                     )
                     != "refund"
                 ):
+
                     continue
+
 
                 refunded_amount += money(
                     transaction.get(
                         "amount"
                     )
                 )
+
 
     # ========================================================
     # NET SALES
@@ -313,8 +404,9 @@ def calculate_sales_metrics(
         - refunded_amount
     )
 
+
     # ========================================================
-    # RETURN RESULT
+    # RETURN
     # ========================================================
 
     return {

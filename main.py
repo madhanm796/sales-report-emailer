@@ -37,7 +37,16 @@ from email_service import (
 # LOGGING
 # ============================================================
 
-LOG_DIRECTORY = "logs"
+BASE_DIRECTORY = os.path.dirname(
+    os.path.abspath(__file__)
+)
+
+
+LOG_DIRECTORY = os.path.join(
+    BASE_DIRECTORY,
+    "logs"
+)
+
 
 os.makedirs(
     LOG_DIRECTORY,
@@ -90,8 +99,9 @@ except Exception as exc:
     raise RuntimeError(
         f"Invalid REPORT_TIMEZONE "
         f"'{REPORT_TIMEZONE}'. "
-        f"Make sure the 'tzdata' package is installed. "
-        f"Error: {exc}"
+        f"Install tzdata with: "
+        f"pip install tzdata. "
+        f"Original error: {exc}"
     )
 
 
@@ -101,7 +111,7 @@ except Exception as exc:
 
 def utc_now() -> datetime:
     """
-    Return the current UTC datetime.
+    Return current UTC time.
     """
 
     return datetime.now(
@@ -116,10 +126,10 @@ def get_previous_hour_period():
     Example:
 
         Current time:
-            12:17 PM
+            13:25
 
-        Report period:
-            11:17 AM -> 12:17 PM
+        Reporting period:
+            12:25 -> 13:25
     """
 
     end_time = utc_now()
@@ -141,8 +151,8 @@ def format_display_time(
     dt: datetime
 ) -> str:
     """
-    Convert a UTC datetime to the configured
-    reporting timezone.
+    Convert UTC datetime into the configured
+    local reporting timezone.
     """
 
     local_dt = (
@@ -157,7 +167,7 @@ def format_display_time(
 
 
 # ============================================================
-# DRY-RUN TERMINAL REPORT
+# DRY RUN REPORT
 # ============================================================
 
 def print_dry_run_report(
@@ -166,11 +176,8 @@ def print_dry_run_report(
     start_display: str,
     end_display: str,
     recipient_email: str,
+    cc_emails: list[str],
 ):
-    """
-    Print the generated report to the terminal
-    instead of sending an email.
-    """
 
     separator = "=" * 65
 
@@ -192,6 +199,11 @@ def print_dry_run_report(
     print(
         f"Recipient        : "
         f"{recipient_email}"
+    )
+
+    print(
+        f"CC               : "
+        f"{', '.join(cc_emails) if cc_emails else 'None'}"
     )
 
     print()
@@ -290,6 +302,55 @@ def print_dry_run_report(
 
 
 # ============================================================
+# VALIDATE BRAND CONFIGURATION
+# ============================================================
+
+def validate_brand_config(
+    brand_key: str,
+    brand_config: dict
+) -> list[str]:
+    """
+    Return a list of missing configuration values.
+    """
+
+    missing = []
+
+    if not brand_config.get(
+        "shop_name"
+    ):
+
+        missing.append(
+            "shop_name"
+        )
+
+    if not brand_config.get(
+        "client_id"
+    ):
+
+        missing.append(
+            "client_id"
+        )
+
+    if not brand_config.get(
+        "client_secret"
+    ):
+
+        missing.append(
+            "client_secret"
+        )
+
+    if not brand_config.get(
+        "recipient_email"
+    ):
+
+        missing.append(
+            "recipient_email"
+        )
+
+    return missing
+
+
+# ============================================================
 # PROCESS ONE BRAND
 # ============================================================
 
@@ -319,6 +380,11 @@ def run_brand_report(
         "recipient_email"
     )
 
+    cc_emails = brand_config.get(
+        "cc_emails",
+        []
+    )
+
     api_version = brand_config.get(
         "api_version"
     )
@@ -328,35 +394,10 @@ def run_brand_report(
     # CONFIGURATION VALIDATION
     # ========================================================
 
-    missing = []
-
-
-    if not shop_name:
-
-        missing.append(
-            "shop_name"
-        )
-
-
-    if not client_id:
-
-        missing.append(
-            "client_id"
-        )
-
-
-    if not client_secret:
-
-        missing.append(
-            "client_secret"
-        )
-
-
-    if not recipient_email:
-
-        missing.append(
-            "recipient_email"
-        )
+    missing = validate_brand_config(
+        brand_key,
+        brand_config
+    )
 
 
     if missing:
@@ -371,7 +412,7 @@ def run_brand_report(
 
 
     # ========================================================
-    # HOURLY REPORT PERIOD
+    # REPORT PERIOD
     # ========================================================
 
     start_time, end_time = (
@@ -411,7 +452,7 @@ def run_brand_report(
 
 
     # ========================================================
-    # CREATE SHOPIFY CLIENT
+    # SHOPIFY CLIENT
     # ========================================================
 
     client = ShopifyClient(
@@ -437,12 +478,21 @@ def run_brand_report(
             label
         )
 
+
         orders = client.get_orders(
 
             start_iso=start_iso,
 
             end_iso=end_iso,
         )
+
+
+        logger.info(
+            "%s: Retrieved %d orders.",
+            label,
+            len(orders)
+        )
+
 
     except ShopifyAPIError as exc:
 
@@ -453,6 +503,7 @@ def run_brand_report(
         )
 
         return False
+
 
     except Exception as exc:
 
@@ -466,7 +517,7 @@ def run_brand_report(
 
 
     # ========================================================
-    # CALCULATE SALES METRICS
+    # CALCULATE METRICS
     # ========================================================
 
     try:
@@ -476,6 +527,7 @@ def run_brand_report(
                 orders
             )
         )
+
 
     except Exception as exc:
 
@@ -564,6 +616,8 @@ def run_brand_report(
             end_display=end_display,
 
             recipient_email=recipient_email,
+
+            cc_emails=cc_emails,
         )
 
 
@@ -577,16 +631,35 @@ def run_brand_report(
     try:
 
         logger.info(
-            "%s: Sending hourly report to %s...",
+            "%s: Sending hourly report.",
+            label
+        )
+
+        logger.info(
+            "%s: TO=%s",
             label,
             recipient_email
         )
+
+        if cc_emails:
+
+            logger.info(
+                "%s: CC=%s",
+                label,
+                ", ".join(
+                    cc_emails
+                )
+            )
 
 
         send_report_email(
 
             recipient_email=(
                 recipient_email
+            ),
+
+            cc_emails=(
+                cc_emails
             ),
 
             brand_label=(
