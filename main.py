@@ -771,6 +771,10 @@ def run_brand_report(
             end_display=(
                 end_display
             ),
+
+            cc_emails=(
+                cc_emails
+            ),
         )
 
 
