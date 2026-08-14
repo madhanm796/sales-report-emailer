@@ -9,8 +9,6 @@ __pycache__/
 logs/
 *.log
 
-report_state.json
-
 build/
 dist/
 *.spec
