@@ -33,19 +33,16 @@ from email_service import (
 )
 
 
+from report_state import (
+    ReportState,
+)
+
+
 # ============================================================
 # LOGGING
 # ============================================================
 
-BASE_DIRECTORY = os.path.dirname(
-    os.path.abspath(__file__)
-)
-
-
-LOG_DIRECTORY = os.path.join(
-    BASE_DIRECTORY,
-    "logs"
-)
+LOG_DIRECTORY = "logs"
 
 
 os.makedirs(
@@ -98,10 +95,7 @@ except Exception as exc:
 
     raise RuntimeError(
         f"Invalid REPORT_TIMEZONE "
-        f"'{REPORT_TIMEZONE}'. "
-        f"Install tzdata with: "
-        f"pip install tzdata. "
-        f"Original error: {exc}"
+        f"'{REPORT_TIMEZONE}': {exc}"
     )
 
 
@@ -111,7 +105,7 @@ except Exception as exc:
 
 def utc_now() -> datetime:
     """
-    Return current UTC time.
+    Return the current UTC datetime.
     """
 
     return datetime.now(
@@ -119,40 +113,56 @@ def utc_now() -> datetime:
     )
 
 
-def get_previous_hour_period():
+# ============================================================
+
+def parse_timestamp(
+    timestamp: str
+) -> datetime:
     """
-    Return the previous one-hour reporting period.
-
-    Example:
-
-        Current time:
-            13:25
-
-        Reporting period:
-            12:25 -> 13:25
+    Convert an ISO timestamp into an aware datetime.
     """
 
-    end_time = utc_now()
+    parsed = datetime.fromisoformat(
+        timestamp
+    )
 
-    start_time = (
-        end_time
+
+    if parsed.tzinfo is None:
+
+        parsed = parsed.replace(
+            tzinfo=timezone.utc
+        )
+
+
+    return parsed
+
+
+# ============================================================
+
+def get_initial_start_time() -> datetime:
+    """
+    Determines the reporting period for the very first run.
+
+    If no previous successful checkpoint exists,
+    use the previous one hour.
+    """
+
+    return (
+        utc_now()
         - timedelta(
             hours=1
         )
     )
 
-    return (
-        start_time,
-        end_time
-    )
 
+# ============================================================
 
 def format_display_time(
     dt: datetime
 ) -> str:
     """
     Convert UTC datetime into the configured
-    local reporting timezone.
+    reporting timezone.
     """
 
     local_dt = (
@@ -161,13 +171,14 @@ def format_display_time(
         )
     )
 
+
     return local_dt.strftime(
-        "%d %b %Y, %I:%M:%S %p"
+        "%d %b %Y, %I:%M %p"
     )
 
 
 # ============================================================
-# DRY RUN REPORT
+# TERMINAL REPORT
 # ============================================================
 
 def print_dry_run_report(
@@ -176,117 +187,135 @@ def print_dry_run_report(
     start_display: str,
     end_display: str,
     recipient_email: str,
-    cc_emails: list[str],
+    cc_emails: list[str] | None = None,
 ):
+    """
+    Print the generated report to the terminal
+    during dry-run mode.
+    """
 
-    separator = "=" * 65
+    separator = "=" * 60
+
 
     print()
     print(separator)
 
     print(
-        f"{brand_label.upper()} "
-        f"HOURLY SALES REPORT - DRY RUN"
+        f"{brand_label.upper()} SALES REPORT - DRY RUN"
     )
 
     print(separator)
+
 
     print(
         f"Reporting Period : "
         f"{start_display} -> {end_display}"
     )
 
+
     print(
         f"Recipient        : "
         f"{recipient_email}"
     )
 
-    print(
-        f"CC               : "
-        f"{', '.join(cc_emails) if cc_emails else 'None'}"
-    )
+
+    if cc_emails:
+
+        print(
+            f"CC               : "
+            f"{', '.join(cc_emails)}"
+        )
+
 
     print()
 
-    # ========================================================
-    # ORDER SUMMARY
-    # ========================================================
 
     print("ORDER SUMMARY")
-    print("-" * 65)
+
+    print("-" * 60)
+
 
     print(
         f"Total Orders     : "
         f"{metrics['total_orders']}"
     )
 
+
     print(
         f"Items Sold       : "
         f"{metrics['total_items']}"
     )
+
 
     print(
         f"Paid Orders      : "
         f"{metrics['paid_orders_count']}"
     )
 
+
     print(
         f"Cancelled Orders : "
         f"{metrics['cancelled_orders_count']}"
     )
 
+
     print()
 
-    # ========================================================
-    # SALES
-    # ========================================================
 
     print("SALES")
-    print("-" * 65)
+
+    print("-" * 60)
+
 
     print(
         f"Gross Sales      : "
         f"₹{float(metrics['total_sales']):,.2f}"
     )
 
+
     print(
         f"Discounts        : "
         f"₹{float(metrics['total_discounts']):,.2f}"
     )
+
 
     print(
         f"Refunds          : "
         f"₹{float(metrics['refunded_amount']):,.2f}"
     )
 
+
     print(
         f"Net Sales        : "
         f"₹{float(metrics['net_sales']):,.2f}"
     )
 
+
     print()
 
-    # ========================================================
-    # PAYMENT SUMMARY
-    # ========================================================
 
     print("PAYMENT SUMMARY")
-    print("-" * 65)
+
+    print("-" * 60)
+
 
     print(
         f"COD Orders       : "
         f"{metrics['cod_orders_count']}"
     )
 
+
     print(
         f"COD Sales        : "
         f"₹{float(metrics['cod_sales']):,.2f}"
     )
 
+
     print(
         f"Paid Sales       : "
         f"₹{float(metrics['paid_sales']):,.2f}"
     )
+
 
     print()
 
@@ -302,61 +331,13 @@ def print_dry_run_report(
 
 
 # ============================================================
-# VALIDATE BRAND CONFIGURATION
-# ============================================================
-
-def validate_brand_config(
-    brand_key: str,
-    brand_config: dict
-) -> list[str]:
-    """
-    Return a list of missing configuration values.
-    """
-
-    missing = []
-
-    if not brand_config.get(
-        "shop_name"
-    ):
-
-        missing.append(
-            "shop_name"
-        )
-
-    if not brand_config.get(
-        "client_id"
-    ):
-
-        missing.append(
-            "client_id"
-        )
-
-    if not brand_config.get(
-        "client_secret"
-    ):
-
-        missing.append(
-            "client_secret"
-        )
-
-    if not brand_config.get(
-        "recipient_email"
-    ):
-
-        missing.append(
-            "recipient_email"
-        )
-
-    return missing
-
-
-# ============================================================
-# PROCESS ONE BRAND
+# BRAND REPORT
 # ============================================================
 
 def run_brand_report(
     brand_key: str,
     brand_config: dict,
+    state: ReportState,
 ) -> bool:
 
     label = brand_config.get(
@@ -364,26 +345,32 @@ def run_brand_report(
         brand_key
     )
 
+
     shop_name = brand_config.get(
         "shop_name"
     )
+
 
     client_id = brand_config.get(
         "client_id"
     )
 
+
     client_secret = brand_config.get(
         "client_secret"
     )
+
 
     recipient_email = brand_config.get(
         "recipient_email"
     )
 
+
     cc_emails = brand_config.get(
         "cc_emails",
         []
     )
+
 
     api_version = brand_config.get(
         "api_version"
@@ -394,10 +381,35 @@ def run_brand_report(
     # CONFIGURATION VALIDATION
     # ========================================================
 
-    missing = validate_brand_config(
-        brand_key,
-        brand_config
-    )
+    missing = []
+
+
+    if not shop_name:
+
+        missing.append(
+            "shop_name"
+        )
+
+
+    if not client_id:
+
+        missing.append(
+            "client_id"
+        )
+
+
+    if not client_secret:
+
+        missing.append(
+            "client_secret"
+        )
+
+
+    if not recipient_email:
+
+        missing.append(
+            "recipient_email"
+        )
 
 
     if missing:
@@ -415,25 +427,108 @@ def run_brand_report(
     # REPORT PERIOD
     # ========================================================
 
-    start_time, end_time = (
-        get_previous_hour_period()
+    last_successful_run = (
+        state.get_last_successful_run(
+            brand_key
+        )
     )
 
+
+    if last_successful_run:
+
+        try:
+
+            start_time = parse_timestamp(
+                last_successful_run
+            )
+
+
+            logger.info(
+                "%s: Last successful report: %s",
+                label,
+                format_display_time(
+                    start_time
+                )
+            )
+
+
+        except Exception as exc:
+
+            logger.error(
+                "%s: Invalid stored timestamp '%s': %s",
+                label,
+                last_successful_run,
+                exc
+            )
+
+
+            start_time = (
+                get_initial_start_time()
+            )
+
+
+    else:
+
+        start_time = (
+            get_initial_start_time()
+        )
+
+
+        logger.info(
+            "%s: No previous successful report found. "
+            "Using previous 1 hour.",
+            label
+        )
+
+
+    # ========================================================
+    # CURRENT END TIME
+    # ========================================================
+
+    end_time = utc_now()
+
+
+    # ========================================================
+    # PERIOD VALIDATION
+    # ========================================================
+
+    if start_time >= end_time:
+
+        logger.warning(
+            "%s: Invalid reporting period. "
+            "Start=%s End=%s",
+            label,
+            start_time,
+            end_time,
+        )
+
+        return False
+
+
+    # ========================================================
+    # API TIMESTAMPS
+    # ========================================================
 
     start_iso = (
         start_time.isoformat()
     )
+
 
     end_iso = (
         end_time.isoformat()
     )
 
 
+    # ========================================================
+    # DISPLAY TIMESTAMPS
+    # ========================================================
+
     start_display = (
         format_display_time(
             start_time
         )
     )
+
 
     end_display = (
         format_display_time(
@@ -447,12 +542,12 @@ def run_brand_report(
         "%s -> %s",
         label,
         start_display,
-        end_display
+        end_display,
     )
 
 
     # ========================================================
-    # SHOPIFY CLIENT
+    # CREATE SHOPIFY CLIENT
     # ========================================================
 
     client = ShopifyClient(
@@ -488,7 +583,7 @@ def run_brand_report(
 
 
         logger.info(
-            "%s: Retrieved %d orders.",
+            "%s: Shopify returned %s orders.",
             label,
             len(orders)
         )
@@ -502,6 +597,7 @@ def run_brand_report(
             exc
         )
 
+
         return False
 
 
@@ -512,6 +608,7 @@ def run_brand_report(
             label,
             exc
         )
+
 
         return False
 
@@ -537,6 +634,7 @@ def run_brand_report(
             exc
         )
 
+
         return False
 
 
@@ -545,9 +643,7 @@ def run_brand_report(
     # ========================================================
 
     logger.info(
-
-        "%s: "
-        "Orders=%s | "
+        "%s: Orders=%s | "
         "Items=%s | "
         "Gross Sales=₹%.2f | "
         "Net Sales=₹%.2f | "
@@ -599,6 +695,7 @@ def run_brand_report(
             label
         )
 
+
         logger.info(
             "%s: Email sending is disabled.",
             label
@@ -621,45 +718,42 @@ def run_brand_report(
         )
 
 
+        # IMPORTANT:
+        #
+        # We intentionally do NOT update the state
+        # during dry-run mode.
+        #
+        # This allows us to repeatedly test the same
+        # reporting period.
+
+
+        logger.info(
+            "%s: Dry run completed. "
+            "Report state was NOT updated.",
+            label
+        )
+
+
         return True
 
 
     # ========================================================
-    # SEND EMAIL
+    # REAL EMAIL
     # ========================================================
 
     try:
 
         logger.info(
-            "%s: Sending hourly report.",
-            label
-        )
-
-        logger.info(
-            "%s: TO=%s",
+            "%s: Sending report email to %s...",
             label,
             recipient_email
         )
-
-        if cc_emails:
-
-            logger.info(
-                "%s: CC=%s",
-                label,
-                ", ".join(
-                    cc_emails
-                )
-            )
 
 
         send_report_email(
 
             recipient_email=(
                 recipient_email
-            ),
-
-            cc_emails=(
-                cc_emails
             ),
 
             brand_label=(
@@ -688,11 +782,56 @@ def run_brand_report(
             exc
         )
 
+
+        # IMPORTANT:
+        #
+        # Do not update the checkpoint.
+        #
+        # The next run will retry the same reporting period.
+
+
         return False
 
 
+    # ========================================================
+    # SAVE SUCCESSFUL BRAND CHECKPOINT
+    # ========================================================
+
+    try:
+
+        state.set_last_successful_run(
+
+            brand_key,
+
+            end_time.isoformat()
+        )
+
+
+        logger.info(
+            "%s: Successful checkpoint updated to %s.",
+            label,
+            end_time.isoformat()
+        )
+
+
+    except Exception as exc:
+
+        logger.exception(
+            "%s: Failed to update report state: %s",
+            label,
+            exc
+        )
+
+
+        return False
+
+
+    # ========================================================
+    # SUCCESS
+    # ========================================================
+
     logger.info(
-        "%s: Hourly report sent successfully.",
+        "%s: Report completed successfully.",
         label
     )
 
@@ -707,48 +846,57 @@ def run_brand_report(
 def run_sales_reporter():
 
     logger.info(
-        ""
+        "=================================================="
     )
+
+
+    logger.info(
+        "SHOPIFY AUTOMATED SALES REPORT"
+    )
+
 
     logger.info(
         "=================================================="
     )
 
-    logger.info(
-        "SHOPIFY HOURLY SALES REPORT"
-    )
-
-    logger.info(
-        "=================================================="
-    )
 
     logger.info(
         "Dry Run: %s",
         "ENABLED" if DRY_RUN else "DISABLED"
     )
 
+
     logger.info(
         "Reporting Timezone: %s",
         REPORT_TIMEZONE
     )
+
 
     logger.info(
         "=================================================="
     )
 
 
+    # ========================================================
+    # REPORT STATE
+    # ========================================================
+
+    state = ReportState()
+
+
+    # ========================================================
+    # PROCESS BRANDS
+    # ========================================================
+
     total_brands = len(
         BRANDS_CONFIG
     )
+
 
     successful_brands = 0
 
     failed_brands = 0
 
-
-    # ========================================================
-    # PROCESS ALL BRANDS
-    # ========================================================
 
     for (
         brand_key,
@@ -765,14 +913,17 @@ def run_sales_reporter():
             ""
         )
 
+
         logger.info(
             "--------------------------------------------------"
         )
+
 
         logger.info(
             "Processing: %s",
             label
         )
+
 
         logger.info(
             "--------------------------------------------------"
@@ -786,6 +937,8 @@ def run_sales_reporter():
                 brand_key=brand_key,
 
                 brand_config=brand_config,
+
+                state=state,
             )
 
 
@@ -793,14 +946,17 @@ def run_sales_reporter():
 
                 successful_brands += 1
 
+
                 logger.info(
                     "%s: SUCCESS",
                     label
                 )
 
+
             else:
 
                 failed_brands += 1
+
 
                 logger.warning(
                     "%s: FAILED",
@@ -812,10 +968,54 @@ def run_sales_reporter():
 
             failed_brands += 1
 
+
             logger.exception(
                 "%s: Unexpected error.",
                 label
             )
+
+
+    # ========================================================
+    # PERSIST STATE
+    # ========================================================
+    #
+    # Only save state when NOT in dry-run mode.
+    #
+    # In real mode:
+    #
+    #     successful brand -> checkpoint updated
+    #
+    #     failed brand     -> checkpoint unchanged
+    #
+    # ========================================================
+
+    if not DRY_RUN:
+
+        try:
+
+            state.save()
+
+
+            logger.info(
+                "Report state persisted successfully."
+            )
+
+
+        except Exception as exc:
+
+            logger.exception(
+                "Failed to persist report state: %s",
+                exc
+            )
+
+
+            # If state cannot be persisted, the next run
+            # may repeat successful reports.
+            #
+            # We intentionally report this as an error.
+
+
+            failed_brands += 1
 
 
     # ========================================================
@@ -826,37 +1026,45 @@ def run_sales_reporter():
         ""
     )
 
-    logger.info(
-        "=================================================="
-    )
-
-    logger.info(
-        "HOURLY REPORT CYCLE COMPLETED"
-    )
 
     logger.info(
         "=================================================="
     )
+
+
+    logger.info(
+        "REPORT CYCLE COMPLETED"
+    )
+
+
+    logger.info(
+        "=================================================="
+    )
+
 
     logger.info(
         "Total Brands : %s",
         total_brands
     )
 
+
     logger.info(
         "Successful   : %s",
         successful_brands
     )
+
 
     logger.info(
         "Failed       : %s",
         failed_brands
     )
 
+
     logger.info(
         "Dry Run      : %s",
         "YES" if DRY_RUN else "NO"
     )
+
 
     logger.info(
         "=================================================="

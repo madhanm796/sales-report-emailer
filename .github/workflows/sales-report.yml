@@ -1,33 +1,81 @@
 name: Hourly Shopify Sales Report
 
+
+# ============================================================
+# TRIGGERS
+# ============================================================
+
 on:
 
-  # ==========================================================
-  # AUTOMATIC SCHEDULE
-  # ==========================================================
-  # Run once every hour at minute 0.
+  # ----------------------------------------------------------
+  # HOURLY SCHEDULE
+  # ----------------------------------------------------------
   #
-  # The timezone is explicitly set to Asia/Kolkata.
+  # GitHub uses the specified IANA timezone.
   #
-  # GitHub may delay scheduled jobs under load, so the Python
-  # reporting-state logic should eventually account for this.
-  # ==========================================================
+  # Intended schedule:
+  #
+  # 09:00 AM IST
+  # 10:00 AM IST
+  # 11:00 AM IST
+  # ...
+  #
+  # GitHub may still delay scheduled runs.
+  # The Python checkpoint logic handles that.
+  # ----------------------------------------------------------
 
   schedule:
+
     - cron: "0 * * * *"
       timezone: "Asia/Kolkata"
 
 
-  # ==========================================================
+  # ----------------------------------------------------------
   # MANUAL EXECUTION
-  # ==========================================================
-  # Allows you to test the workflow manually from:
-  #
-  # Actions → Hourly Shopify Sales Report → Run workflow
-  # ==========================================================
+  # ----------------------------------------------------------
 
   workflow_dispatch:
 
+
+# ============================================================
+# CONCURRENCY
+# ============================================================
+#
+# Never allow two sales-report jobs to process the same
+# checkpoint at the same time.
+#
+# This is important because report_state.json is persistent.
+#
+# ------------------------------------------------------------
+
+concurrency:
+
+  group: shopify-sales-report
+
+  cancel-in-progress: false
+
+
+# ============================================================
+# PERMISSIONS
+# ============================================================
+#
+# We need:
+#
+# contents: write
+#
+# because the workflow updates report_state.json and commits
+# the new checkpoint back to the repository.
+#
+# ============================================================
+
+permissions:
+
+  contents: write
+
+
+# ============================================================
+# JOB
+# ============================================================
 
 jobs:
 
@@ -38,30 +86,32 @@ jobs:
 
     steps:
 
-      # ========================================================
-      # CHECKOUT REPOSITORY
-      # ========================================================
+
+      # ======================================================
+      # CHECKOUT
+      # ======================================================
 
       - name: Checkout repository
 
         uses: actions/checkout@v4
 
 
-      # ========================================================
+      # ======================================================
       # SET UP PYTHON
-      # ========================================================
+      # ======================================================
 
       - name: Set up Python
 
         uses: actions/setup-python@v5
 
         with:
+
           python-version: "3.12"
 
 
-      # ========================================================
-      # INSTALL PYTHON DEPENDENCIES
-      # ========================================================
+      # ======================================================
+      # INSTALL DEPENDENCIES
+      # ======================================================
 
       - name: Install dependencies
 
@@ -72,46 +122,46 @@ jobs:
           pip install -r requirements.txt
 
 
-      # ========================================================
+      # ======================================================
       # RUN SALES REPORT
-      # ========================================================
+      # ======================================================
 
       - name: Run sales report
 
         env:
 
-          # ====================================================
+          # --------------------------------------------------
           # SHOPIFY
-          # ====================================================
+          # --------------------------------------------------
 
           SHOPIFY_API_VERSION: ${{ secrets.SHOPIFY_API_VERSION }}
 
 
-          # ====================================================
+          # --------------------------------------------------
           # REPORT CONFIGURATION
-          # ====================================================
+          # --------------------------------------------------
 
           REPORT_TIMEZONE: ${{ secrets.REPORT_TIMEZONE }}
 
           REPORT_INTERVAL_HOURS: ${{ secrets.REPORT_INTERVAL_HOURS }}
 
 
-          # ====================================================
+          # --------------------------------------------------
           # DRY RUN
-          # ====================================================
+          # --------------------------------------------------
           #
-          # Keep this TRUE while testing.
+          # Keep this TRUE during testing.
           #
-          # Change the GitHub Secret to FALSE when you're ready
-          # to send real emails.
-          # ====================================================
+          # Change the GitHub Secret to FALSE when ready
+          # for real emails.
+          # --------------------------------------------------
 
           DRY_RUN: ${{ secrets.DRY_RUN }}
 
 
-          # ====================================================
-          # SMTP / GMAIL
-          # ====================================================
+          # --------------------------------------------------
+          # SMTP
+          # --------------------------------------------------
 
           SMTP_HOST: ${{ secrets.SMTP_HOST }}
 
@@ -122,9 +172,9 @@ jobs:
           SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
 
 
-          # ====================================================
+          # --------------------------------------------------
           # BAYBEE
-          # ====================================================
+          # --------------------------------------------------
 
           BAYBEE_LABEL: ${{ secrets.BAYBEE_LABEL }}
 
@@ -139,9 +189,9 @@ jobs:
           BAYBEE_CC_EMAILS: ${{ secrets.BAYBEE_CC_EMAILS }}
 
 
-          # ====================================================
+          # --------------------------------------------------
           # DROGO
-          # ====================================================
+          # --------------------------------------------------
 
           DROGO_LABEL: ${{ secrets.DROGO_LABEL }}
 
@@ -156,9 +206,9 @@ jobs:
           DROGO_CC_EMAILS: ${{ secrets.DROGO_CC_EMAILS }}
 
 
-          # ====================================================
+          # --------------------------------------------------
           # DOMESTICA
-          # ====================================================
+          # --------------------------------------------------
 
           DOMESTICA_LABEL: ${{ secrets.DOMESTICA_LABEL }}
 
@@ -173,10 +223,89 @@ jobs:
           DOMESTICA_CC_EMAILS: ${{ secrets.DOMESTICA_CC_EMAILS }}
 
 
-        # ======================================================
-        # EXECUTE PYTHON APPLICATION
-        # ======================================================
-
         run: |
 
           python main.py
+
+
+      # ======================================================
+      # COMMIT UPDATED REPORT STATE
+      # ======================================================
+      #
+      # This step runs only if the Python program itself
+      # completed successfully.
+      #
+      # report_state.json contains timestamps only.
+      # It does NOT contain Shopify/Gmail credentials.
+      #
+      # ======================================================
+
+      - name: Save report state to repository
+
+        if: success()
+
+        run: |
+
+          echo "Checking report state..."
+
+          if [ ! -f report_state.json ]; then
+
+            echo "No report_state.json found."
+
+            echo "Nothing to commit."
+
+            exit 0
+
+          fi
+
+
+          echo "Current report state:"
+
+          cat report_state.json
+
+
+          # --------------------------------------------------
+          # Configure Git
+          # --------------------------------------------------
+
+          git config user.name "github-actions[bot]"
+
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+
+          # --------------------------------------------------
+          # Stage state file
+          # --------------------------------------------------
+
+          git add report_state.json
+
+
+          # --------------------------------------------------
+          # Check whether the file actually changed
+          # --------------------------------------------------
+
+          if git diff --cached --quiet; then
+
+            echo "Report state has not changed."
+
+            exit 0
+
+          fi
+
+
+          # --------------------------------------------------
+          # Commit
+          # --------------------------------------------------
+
+          git commit \
+            -m "Update sales report checkpoint [skip ci]"
+
+
+          # --------------------------------------------------
+          # Push
+          # --------------------------------------------------
+
+          git push origin HEAD:main
+
+
+          echo "Report state committed successfully."
