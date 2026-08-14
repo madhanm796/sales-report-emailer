@@ -1,64 +1,48 @@
 import json
-import os
-import threading
+import logging
+from datetime import datetime, timezone
+
+
+logger = logging.getLogger(__name__)
 
 
 class ReportState:
+    """
+    Persistent reporting state.
 
-    def __init__(
-        self,
-        file_path: str = "report_state.json"
-    ):
+    The actual persistence is handled by GitHub Actions
+    through the REPORT_STATE environment variable.
 
-        self.file_path = file_path
+    This class keeps the application independent of the
+    storage mechanism.
+    """
 
-        self.lock = (
-            threading.Lock()
-        )
+    def __init__(self, raw_state: str | None = None):
 
-        self.data = (
-            self._load()
-        )
+        self._state = {}
 
-    # ========================================================
-    # LOAD
-    # ========================================================
+        if raw_state:
 
-    def _load(self) -> dict:
+            try:
 
-        if not os.path.exists(
-            self.file_path
-        ):
-
-            return {}
-
-        try:
-
-            with open(
-                self.file_path,
-                "r",
-                encoding="utf-8"
-            ) as file:
-
-                data = json.load(
-                    file
+                parsed = json.loads(
+                    raw_state
                 )
 
-            if isinstance(
-                data,
-                dict
-            ):
+                if isinstance(
+                    parsed,
+                    dict
+                ):
 
-                return data
+                    self._state = parsed
 
-            return {}
+            except json.JSONDecodeError:
 
-        except (
-            json.JSONDecodeError,
-            OSError
-        ):
+                logger.warning(
+                    "REPORT_STATE contains invalid JSON. "
+                    "Starting with empty state."
+                )
 
-            return {}
 
     # ========================================================
     # GET
@@ -67,45 +51,67 @@ class ReportState:
     def get_last_successful_run(
         self,
         brand_key: str
-    ):
+    ) -> str | None:
 
-        return self.data.get(
+        value = self._state.get(
             brand_key
         )
 
+        if not value:
+
+            return None
+
+        return str(value)
+
+
     # ========================================================
-    # SAVE
+    # SET
     # ========================================================
 
     def set_last_successful_run(
         self,
         brand_key: str,
         timestamp: str
-    ):
+    ) -> None:
 
-        with self.lock:
+        self._state[
+            brand_key
+        ] = timestamp
 
-            self.data[
-                brand_key
-            ] = timestamp
 
-            temporary_file = (
-                f"{self.file_path}.tmp"
+    # ========================================================
+    # EXPORT
+    # ========================================================
+
+    def to_json(self) -> str:
+
+        return json.dumps(
+            self._state,
+            separators=(
+                ",",
+                ":"
+            ),
+            sort_keys=True
+        )
+
+
+    # ========================================================
+    # VALIDATE TIMESTAMP
+    # ========================================================
+
+    def validate_timestamp(
+        self,
+        timestamp: str
+    ) -> datetime:
+
+        parsed = datetime.fromisoformat(
+            timestamp
+        )
+
+        if parsed.tzinfo is None:
+
+            parsed = parsed.replace(
+                tzinfo=timezone.utc
             )
 
-            with open(
-                temporary_file,
-                "w",
-                encoding="utf-8"
-            ) as file:
-
-                json.dump(
-                    self.data,
-                    file,
-                    indent=4
-                )
-
-            os.replace(
-                temporary_file,
-                self.file_path
-            )
+        return parsed
